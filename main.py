@@ -16,7 +16,7 @@ class ClassificationResponse(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def get_form(request: Request):
     """Отображает HTML-форму для ввода обращения"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {})  # request не используется в HTML
 
 @app.post("/classify", response_model=ClassificationResponse)
 async def classify(request: Request, user_message: str = Form(...)):

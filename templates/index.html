@@ -6,35 +6,81 @@
     <title>ИИ-агент техподдержки</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
-        textarea { width: 100%; height: 100px; margin: 10px 0; padding: 8px; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        textarea { width: 100%; height: 100px; margin: 10px 0; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; }
         button:hover { background: #0056b3; }
-        .result { margin-top: 20px; padding: 10px; background: #e9ecef; border-radius: 5px; white-space: pre-wrap; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .result { margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 5px; }
+        .result h3 { margin-top: 0; }
+        .badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 14px; font-weight: bold; margin-right: 10px; }
+        .category-badge { background: #007bff; color: white; }
+        .priority-high { background: #dc3545; color: white; }
+        .priority-medium { background: #fd7e14; color: white; }
+        .priority-low { background: #28a745; color: white; }
+        .explanation { margin-top: 10px; padding: 10px; background: white; border-radius: 4px; border-left: 3px solid #007bff; }
+        .loading { color: #007bff; font-style: italic; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📩 Классификатор обращений техподдержки</h1>
+        <h1>📩 ИИ-агент классификации обращений</h1>
+        <p>Введите текст обращения в техподдержку, и ИИ определит категорию, приоритет и даст пояснение.</p>
         <form id="classifyForm">
-            <label for="message">Введите текст обращения:</label><br>
+            <label for="message"><strong>Ваше обращение:</strong></label><br>
             <textarea id="message" name="user_message" required placeholder="Пример: Не могу войти в личный кабинет, пишет ошибка 500"></textarea><br>
-            <button type="submit">Отправить</button>
+            <button type="submit" id="submitBtn">Отправить</button>
         </form>
         <div id="result" class="result" style="display:none;">
-            <h3>Результат классификации:</h3>
-            <pre id="output"></pre>
+            <h3>Результат анализа:</h3>
+            <div id="categoryDisplay"></div>
+            <div id="priorityDisplay"></div>
+            <div id="explanationDisplay" class="explanation"></div>
         </div>
     </div>
 
     <script>
         const form = document.getElementById('classifyForm');
         const resultDiv = document.getElementById('result');
-        const outputPre = document.getElementById('output');
+        const categoryDisplay = document.getElementById('categoryDisplay');
+        const priorityDisplay = document.getElementById('priorityDisplay');
+        const explanationDisplay = document.getElementById('explanationDisplay');
+        const submitBtn = document.getElementById('submitBtn');
+        const messageField = document.getElementById('message');
+
+        // Словарь для русских названий категорий
+        const categoryNames = {
+            "access": "🔐 Доступ",
+            "bug": "🐛 Ошибка / Баг",
+            "payment": "💰 Оплата",
+            "suggestion": "💡 Предложение",
+            "other": "📌 Другое",
+            "test": "🧪 Тестовая категория (заглушка)"
+        };
+
+        // Словарь для русских названий приоритетов
+        const priorityNames = {
+            "high": "Высокий",
+            "medium": "Средний",
+            "low": "Низкий"
+        };
+
+        function getPriorityClass(priority) {
+            if (priority === "high") return "priority-high";
+            if (priority === "medium") return "priority-medium";
+            return "priority-low";
+        }
 
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const message = document.getElementById('message').value;
+            const message = messageField.value.trim();
+            if (!message) return;
+
+            // Показать индикатор загрузки
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Обработка...";
+            resultDiv.style.display = "none";
+
             const formData = new URLSearchParams();
             formData.append('user_message', message);
 
@@ -45,11 +91,23 @@
                     body: formData
                 });
                 const data = await response.json();
-                outputPre.textContent = JSON.stringify(data, null, 2);
-                resultDiv.style.display = 'block';
+
+                // Отобразить результат
+                const categoryName = categoryNames[data.category] || data.category;
+                const priorityName = priorityNames[data.priority] || data.priority;
+                const priorityClass = getPriorityClass(data.priority);
+
+                categoryDisplay.innerHTML = `<span class="badge category-badge">📂 Категория: ${categoryName}</span>`;
+                priorityDisplay.innerHTML = `<span class="badge ${priorityClass}">⚡ Приоритет: ${priorityName}</span>`;
+                explanationDisplay.innerHTML = `<strong>💬 Пояснение:</strong><br>${data.explanation}`;
+                
+                resultDiv.style.display = "block";
             } catch (error) {
-                outputPre.textContent = 'Ошибка: ' + error.message;
-                resultDiv.style.display = 'block';
+                explanationDisplay.innerHTML = `<strong>❌ Ошибка:</strong> ${error.message}`;
+                resultDiv.style.display = "block";
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Отправить";
             }
         });
     </script>

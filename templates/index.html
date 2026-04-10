@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ИИ-агент техподдержки</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f4; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+        textarea { width: 100%; height: 100px; margin: 10px 0; padding: 8px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 10px; background: #e9ecef; border-radius: 5px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📩 Классификатор обращений техподдержки</h1>
+        <form id="classifyForm">
+            <label for="message">Введите текст обращения:</label><br>
+            <textarea id="message" name="user_message" required placeholder="Пример: Не могу войти в личный кабинет, пишет ошибка 500"></textarea><br>
+            <button type="submit">Отправить</button>
+        </form>
+        <div id="result" class="result" style="display:none;">
+            <h3>Результат классификации:</h3>
+            <pre id="output"></pre>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('classifyForm');
+        const resultDiv = document.getElementById('result');
+        const outputPre = document.getElementById('output');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const message = document.getElementById('message').value;
+            const formData = new URLSearchParams();
+            formData.append('user_message', message);
+
+            try {
+                const response = await fetch('/classify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData
+                });
+                const data = await response.json();
+                outputPre.textContent = JSON.stringify(data, null, 2);
+                resultDiv.style.display = 'block';
+            } catch (error) {
+                outputPre.textContent = 'Ошибка: ' + error.message;
+                resultDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>История обращений</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #007bff; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .back-link { display: inline-block; margin-top: 20px; color: #007bff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📜 История обращений</h1>
+        <a href="/" class="back-link">← На главную</a>
+        <table>
+            <thead>
+                <tr><th>Время</th><th>Сообщение</th><th>Категория</th><th>Приоритет</th><th>Пояснение</th></tr>
+            </thead>
+            <tbody>
+                {{ table_rows }}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

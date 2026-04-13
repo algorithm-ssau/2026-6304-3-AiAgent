@@ -23,15 +23,7 @@
                 <tr><th>Время</th><th>Сообщение</th><th>Категория</th><th>Приоритет</th><th>Пояснение</th></tr>
             </thead>
             <tbody>
-                {% for record in history %}
-                <tr>
-                    <td>{{ record.timestamp }}</td>
-                    <td>{{ record.user_message[:100] }}{% if record.user_message|length > 100 %}…{% endif %}</td>
-                    <td>{{ record.category }}</td>
-                    <td>{{ record.priority }}</td>
-                    <td>{{ record.explanation[:150] }}</td>
-                </tr>
-                {% endfor %}
+                {{ table_rows }}
             </tbody>
         </table>
     </div>

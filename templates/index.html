@@ -20,6 +20,22 @@
         .priority-low { background: #28a745; color: white; }
         .explanation { margin-top: 10px; padding: 10px; background: white; border-radius: 4px; border-left: 3px solid #007bff; }
         .loading { color: #007bff; font-style: italic; }
+                .copy-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .copy-btn:hover {
+            background: #5a6268;
+        }
+        .response-box {
+            background: #e9ecef;
+            padding: 12px;
+            border-radius: 6px;
+        }
     </style>
 </head>
 <body>
@@ -31,11 +47,16 @@
             <textarea id="message" name="user_message" required placeholder="Пример: Не могу войти в личный кабинет, пишет ошибка 500"></textarea><br>
             <button type="submit" id="submitBtn">Отправить</button>
         </form>
-        <div id="result" class="result" style="display:none;">
+                <div id="result" class="result" style="display:none;">
             <h3>Результат анализа:</h3>
             <div id="categoryDisplay"></div>
             <div id="priorityDisplay"></div>
             <div id="explanationDisplay" class="explanation"></div>
+            <div id="responseDisplay" class="response-box" style="margin-top: 15px; display: none;">
+                <strong>💬 Готовый ответ оператору:</strong>
+                <div id="responseText" style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 5px;"></div>
+                <button id="copyBtn" class="copy-btn" style="margin-top: 10px;">📋 Копировать ответ</button>
+            </div>
         </div>
         <p><a href="/history">📋 Посмотреть историю обращений</a></p>
         <a href="/stats">📊 Статистика</a>
@@ -76,15 +97,15 @@
             return "priority-low";
         }
 
-        form.addEventListener('submit', async (event) => {
+                form.addEventListener('submit', async (event) => {
             event.preventDefault();
             const message = messageField.value.trim();
             if (!message) return;
 
-            // Показать индикатор загрузки
             submitBtn.disabled = true;
             submitBtn.textContent = "Обработка...";
             resultDiv.style.display = "none";
+            responseDisplay.style.display = "none";
 
             const formData = new URLSearchParams();
             formData.append('user_message', message);
@@ -97,7 +118,6 @@
                 });
                 const data = await response.json();
 
-                // Отобразить результат
                 const categoryName = categoryNames[data.category] || data.category;
                 const priorityName = priorityNames[data.priority] || data.priority;
                 const priorityClass = getPriorityClass(data.priority);
@@ -105,6 +125,11 @@
                 categoryDisplay.innerHTML = `<span class="badge category-badge">📂 Категория: ${categoryName}</span>`;
                 priorityDisplay.innerHTML = `<span class="badge ${priorityClass}">⚡ Приоритет: ${priorityName}</span>`;
                 explanationDisplay.innerHTML = `<strong>💬 Пояснение:</strong><br>${data.explanation}`;
+                
+                // Отображение готового ответа
+                const suggestedResponse = data.suggested_response || "Нет готового ответа";
+                responseText.innerText = suggestedResponse;
+                responseDisplay.style.display = 'block';
                 
                 resultDiv.style.display = "block";
             } catch (error) {
@@ -114,6 +139,15 @@
                 submitBtn.disabled = false;
                 submitBtn.textContent = "Отправить";
             }
+        });
+
+        // Копирование ответа
+        copyBtn.addEventListener('click', () => {
+            const text = responseText.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                copyBtn.innerText = '✓ Скопировано!';
+                setTimeout(() => { copyBtn.innerText = '📋 Копировать ответ'; }, 2000);
+            });
         });
     </script>
 </body>

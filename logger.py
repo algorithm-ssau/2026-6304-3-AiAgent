@@ -9,10 +9,9 @@ def init_log():
     if not os.path.exists(LOG_FILE):
         with open(LOG_FILE, mode='w', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
-            writer.writerow(["timestamp", "user_message", "category", "priority", "explanation"])
+            writer.writerow(["timestamp", "user_message", "category", "priority", "explanation", "suggested_response"])
 
 def log_request(user_message: str, result: dict):
-    """Сохраняет запрос и ответ в CSV (UTF-8)"""
     init_log()
     try:
         with open(LOG_FILE, mode='a', newline='', encoding='utf-8') as file:
@@ -22,13 +21,13 @@ def log_request(user_message: str, result: dict):
                 user_message,
                 result.get("category", ""),
                 result.get("priority", ""),
-                result.get("explanation", "")
+                result.get("explanation", ""),
+                result.get("suggested_response", "")
             ])
     except Exception as e:
         print(f"Ошибка логирования: {e}")
 
 def get_history(limit: int = 100) -> List[Dict]:
-    """Возвращает последние записи из лога"""
     init_log()
     rows = []
     try:

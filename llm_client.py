@@ -10,29 +10,20 @@ CLIENT_ID = os.getenv("GIGACHAT_CLIENT_ID")
 AUTH_KEY = os.getenv("GIGACHAT_AUTH_KEY")
 
 def get_gigachat_token():
-    """Получает Access token для GigaChat (действует 30 мин)"""
     url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
-    
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/json",
         "RqUID": str(uuid.uuid4()),
         "Authorization": f"Basic {AUTH_KEY}"
     }
-    
-    data = {
-        "scope": "GIGACHAT_API_PERS"
-    }
-    
+    data = {"scope": "GIGACHAT_API_PERS"}
     try:
         response = requests.post(url, headers=headers, data=data, verify=False, timeout=30)
         if response.status_code == 200:
             return response.json().get("access_token")
-        else:
-            print(f"Ошибка получения токена: {response.status_code} - {response.text}")
-            return None
-    except Exception as e:
-        print(f"Исключение при получении токена: {e}")
+        return None
+    except Exception:
         return None
 
 def classify_with_yandex_gpt(user_message: str) -> dict:
@@ -40,59 +31,52 @@ def classify_with_yandex_gpt(user_message: str) -> dict:
         return {
             "category": "other",
             "priority": "low",
-            "explanation": "Ошибка: нет CLIENT_ID или AUTH_KEY в .env"
+            "explanation": "Нет CLIENT_ID или AUTH_KEY в .env",
+            "suggested_response": "Настройте API ключи в файле .env"
         }
     
-    # Получаем токен
     token = get_gigachat_token()
     if not token:
         return {
             "category": "other",
             "priority": "low",
-            "explanation": "Ошибка: не удалось получить токен GigaChat. Проверьте ключи."
+            "explanation": "Не удалось получить токен GigaChat",
+            "suggested_response": "Сервис временно недоступен, попробуйте позже."
         }
     
-    # Формируем промпт
-    prompt = f"""Ты — ИИ-агент техподдержки. Классифицируй обращение пользователя.
+    prompt = f"""Ты — ИИ-агент техподдержки. Классифицируй обращение пользователя и предложи готовый ответ оператору.
 
 Обращение: "{user_message}"
 
 Категории: access (доступ/пароль), bug (ошибка/баг), payment (оплата), suggestion (предложение), other (другое).
 Приоритет: high (не могу работать), medium (мешает, есть обход), low (вопрос/предложение).
 
-Ответь ТОЛЬКО в формате JSON, без пояснений. Пример:
-{{"category": "access", "priority": "high", "explanation": "Пользователь не может войти"}}
+Ответь ТОЛЬКО в формате JSON, без пояснений. Поля:
+- category: одна из категорий
+- priority: один из приоритетов
+- explanation: краткое пояснение (1 предложение)
+- suggested_response: готовый ответ пользователю (3-4 предложения, вежливо, с рекомендациями)
+
+Пример ответа:
+{{"category": "access", "priority": "high", "explanation": "Пользователь не может войти в аккаунт", "suggested_response": "Здравствуйте! Попробуйте сбросить пароль через форму восстановления. Если это не поможет, проверьте, не включён ли Caps Lock. Также рекомендуем очистить кэш браузера. Если проблема останется, напишите нам, пожалуйста, скриншот ошибки."}}
 """
-    
-    # Запрос к GigaChat API
     url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
-    
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
         "Authorization": f"Bearer {token}"
     }
-    
     data = {
         "model": "GigaChat",
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
+        "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.1,
-        "max_tokens": 250
+        "max_tokens": 500
     }
-    
     try:
         response = requests.post(url, headers=headers, json=data, verify=False, timeout=60)
-        
         if response.status_code == 200:
             result = response.json()
             model_text = result["choices"][0]["message"]["content"]
-            
-            # Очистка от markdown
             model_text = model_text.strip()
             if model_text.startswith("```") and model_text.endswith("```"):
                 lines = model_text.splitlines()
@@ -101,22 +85,23 @@ def classify_with_yandex_gpt(user_message: str) -> dict:
                 if lines and lines[-1].startswith("```"):
                     lines = lines[:-1]
                 model_text = "\n".join(lines).strip()
-            
             parsed = json.loads(model_text)
             return {
                 "category": parsed.get("category", "other"),
                 "priority": parsed.get("priority", "low"),
-                "explanation": parsed.get("explanation", "")
+                "explanation": parsed.get("explanation", ""),
+                "suggested_response": parsed.get("suggested_response", "Рекомендуем обратиться в службу поддержки.")
             }
-        else:
-            return {
-                "category": "other",
-                "priority": "low",
-                "explanation": f"Ошибка GigaChat API: {response.status_code} - {response.text[:200]}"
-            }
+        return {
+            "category": "other",
+            "priority": "low",
+            "explanation": f"Ошибка GigaChat: {response.status_code}",
+            "suggested_response": "Сервис временно недоступен, попробуйте позже."
+        }
     except Exception as e:
         return {
             "category": "other",
             "priority": "low",
-            "explanation": f"Ошибка при вызове GigaChat: {str(e)}"
+            "explanation": f"Ошибка: {str(e)}",
+            "suggested_response": "Произошла техническая ошибка. Пожалуйста, повторите запрос."
         }

@@ -1,111 +1,122 @@
 import os
 import json
+import uuid
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("YANDEX_API_KEY")
-FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
+CLIENT_ID = os.getenv("GIGACHAT_CLIENT_ID")
+AUTH_KEY = os.getenv("GIGACHAT_AUTH_KEY")
+
+def get_gigachat_token():
+    """Получает Access token для GigaChat (действует 30 мин)"""
+    url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+    
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "RqUID": str(uuid.uuid4()),
+        "Authorization": f"Basic {AUTH_KEY}"
+    }
+    
+    data = {
+        "scope": "GIGACHAT_API_PERS"
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, data=data, verify=False, timeout=30)
+        if response.status_code == 200:
+            return response.json().get("access_token")
+        else:
+            print(f"Ошибка получения токена: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"Исключение при получении токена: {e}")
+        return None
 
 def classify_with_yandex_gpt(user_message: str) -> dict:
-    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
-    
-    # Проверка наличия ключей
-    if not API_KEY:
+    if not CLIENT_ID or not AUTH_KEY:
         return {
             "category": "other",
             "priority": "low",
-            "explanation": "Ошибка: не задан YANDEX_API_KEY. Проверьте файл .env"
+            "explanation": "Ошибка: нет CLIENT_ID или AUTH_KEY в .env"
         }
-    if not FOLDER_ID:
+    
+    # Получаем токен
+    token = get_gigachat_token()
+    if not token:
         return {
             "category": "other",
             "priority": "low",
-            "explanation": "Ошибка: не задан YANDEX_FOLDER_ID. Проверьте файл .env"
+            "explanation": "Ошибка: не удалось получить токен GigaChat. Проверьте ключи."
         }
     
+    # Формируем промпт
     prompt = f"""Ты — ИИ-агент техподдержки. Классифицируй обращение пользователя.
 
 Обращение: "{user_message}"
 
-Категории (выбери одну):
-- access: проблемы с доступом, входом, паролем
-- bug: ошибки, баги
-- payment: оплата, возвраты
-- suggestion: предложения
-- other: всё остальное
-
-Приоритет (выбери один):
-- high: пользователь не может работать
-- medium: мешает, но есть обход
-- low: вопрос или предложение
+Категории: access (доступ/пароль), bug (ошибка/баг), payment (оплата), suggestion (предложение), other (другое).
+Приоритет: high (не могу работать), medium (мешает, есть обход), low (вопрос/предложение).
 
 Ответь ТОЛЬКО в формате JSON, без пояснений. Пример:
 {{"category": "access", "priority": "high", "explanation": "Пользователь не может войти"}}
 """
+    
+    # Запрос к GigaChat API
+    url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
+    
     headers = {
-        "Authorization": f"Api-Key {API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token}"
     }
+    
     data = {
-        "modelUri": f"gpt://{FOLDER_ID}/yandexgpt-lite",
-        "completionOptions": {
-            "stream": False,
-            "temperature": 0.1,
-            "maxTokens": 250
-        },
-        "messages": [{"role": "user", "text": prompt}]
+        "model": "GigaChat",
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "temperature": 0.1,
+        "max_tokens": 250
     }
     
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-        if response.status_code != 200:
-            error_msg = f"API вернул ошибку {response.status_code}. Проверьте интернет и ключи."
+        response = requests.post(url, headers=headers, json=data, verify=False, timeout=60)
+        
+        if response.status_code == 200:
+            result = response.json()
+            model_text = result["choices"][0]["message"]["content"]
+            
+            # Очистка от markdown
+            model_text = model_text.strip()
+            if model_text.startswith("```") and model_text.endswith("```"):
+                lines = model_text.splitlines()
+                if lines and lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                model_text = "\n".join(lines).strip()
+            
+            parsed = json.loads(model_text)
+            return {
+                "category": parsed.get("category", "other"),
+                "priority": parsed.get("priority", "low"),
+                "explanation": parsed.get("explanation", "")
+            }
+        else:
             return {
                 "category": "other",
                 "priority": "low",
-                "explanation": error_msg
+                "explanation": f"Ошибка GigaChat API: {response.status_code} - {response.text[:200]}"
             }
-        result = response.json()
-        model_text = result["result"]["alternatives"][0]["message"]["text"]
-        model_text = model_text.strip()
-        # Удаляем обрамление в виде ``` ... ``` или ```json ... ```
-        if model_text.startswith("```") and model_text.endswith("```"):
-            # Убираем первую строку с ```
-            lines = model_text.splitlines()
-            if lines and lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].startswith("```"):
-                lines = lines[:-1]
-            model_text = "\n".join(lines).strip()
-        parsed = json.loads(model_text)
-        return {
-            "category": parsed.get("category", "other"),
-            "priority": parsed.get("priority", "low"),
-            "explanation": parsed.get("explanation", "")
-        }
-    except requests.exceptions.Timeout:
-        return {
-            "category": "other",
-            "priority": "low",
-            "explanation": "Ошибка: таймаут при подключении к YandexGPT. Проверьте интернет."
-        }
-    except requests.exceptions.ConnectionError:
-        return {
-            "category": "other",
-            "priority": "low",
-            "explanation": "Ошибка: нет подключения к интернету или Yandex Cloud недоступен."
-        }
-    except json.JSONDecodeError:
-        return {
-            "category": "other",
-            "priority": "low",
-            "explanation": "Ошибка: не удалось распарсить ответ от ИИ. Попробуйте ещё раз."
-        }
     except Exception as e:
         return {
             "category": "other",
             "priority": "low",
-            "explanation": f"Неизвестная ошибка: {str(e)}"
+            "explanation": f"Ошибка при вызове GigaChat: {str(e)}"
         }
